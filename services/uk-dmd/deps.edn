@@ -1,0 +1,4 @@
+{:deps {com.eldrix/dmd {:git/url "https://github.com/wardle/dmd.git"
+                        :git/sha "db0fda40e11282162edf11db47d00044040ac07b"}
+       org.clojure/data.json {:mvn/version "2.5.2"}}
+ :aliases {:run {:main-opts ["-m" "dmd-search.server"]}}}

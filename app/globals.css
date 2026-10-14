@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --page-background: #f3f7f6;
+  --surface: #ffffff;
+  --surface-subtle: #e9f0ef;
+  --hero-background: #dcebe7;
+  --text-primary: #18272c;
+  --text-secondary: #46585e;
+  --border: #788990;
+  --border-strong: #586b72;
+  --accent: #075e54;
+  --accent-hover: #064a43;
+  --accent-contrast: #ffffff;
+  --link: #00598a;
+  --notice-background: #fff4d6;
+  --notice-text: #493500;
+  --notice-border: #986300;
+  --tag-background: #e3ebe9;
+  --tag-text: #25393a;
+  --state-found: #145c32;
+  --state-empty: #774c00;
+  --state-error: #9d2626;
+  --state-pending: #304b5a;
+  --focus-ring: #b54708;
+  --background: var(--page-background);
+  --foreground: var(--text-primary);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page-background: #10191c;
+  --surface: #1b292d;
+  --surface-subtle: #24383b;
+  --hero-background: #173f3c;
+  --text-primary: #eff7f4;
+  --text-secondary: #c0d0cb;
+  --border: #597074;
+  --border-strong: #779095;
+  --accent: #75d7c0;
+  --accent-hover: #91e5d2;
+  --accent-contrast: #102522;
+  --link: #8bcff3;
+  --notice-background: #3a321d;
+  --notice-text: #ffdf8b;
+  --notice-border: #ca9b35;
+  --tag-background: #344a4c;
+  --tag-text: #e1efec;
+  --state-found: #8ce0a8;
+  --state-empty: #ffda7a;
+  --state-error: #ff9c9c;
+  --state-pending: #b6cfda;
+  --focus-ring: #ffd166;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]),
+  :root[data-theme="system"] {
+    color-scheme: dark;
+    --page-background: #10191c;
+    --surface: #1b292d;
+    --surface-subtle: #24383b;
+    --hero-background: #173f3c;
+    --text-primary: #eff7f4;
+    --text-secondary: #c0d0cb;
+    --border: #597074;
+    --border-strong: #779095;
+    --accent: #75d7c0;
+    --accent-hover: #91e5d2;
+    --accent-contrast: #102522;
+    --link: #8bcff3;
+    --notice-background: #3a321d;
+    --notice-text: #ffdf8b;
+    --notice-border: #ca9b35;
+    --tag-background: #344a4c;
+    --tag-text: #e1efec;
+    --state-found: #8ce0a8;
+    --state-empty: #ffda7a;
+    --state-error: #ff9c9c;
+    --state-pending: #b6cfda;
+    --focus-ring: #ffd166;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+:where(a, button, input, select, [tabindex]):focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}

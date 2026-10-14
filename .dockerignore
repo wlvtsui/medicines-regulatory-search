@@ -1,0 +1,12 @@
+.git
+.next
+node_modules
+coverage
+out
+build
+.env*
+!.env.example
+.secrets
+*.db
+*.jar
+*.log
