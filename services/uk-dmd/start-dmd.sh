@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+echo "Starting UK dm+d service..."
+echo "DMD_DATA_DIR=${DMD_DATA_DIR:-/data}"
+echo "Working directory: $(pwd)"
+
 data_dir=${DMD_DATA_DIR:-/data}
 pointer_file="$data_dir/current-db-path"
 
