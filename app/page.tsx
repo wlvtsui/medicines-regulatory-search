@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import type { MedicineMatchReason } from "@/lib/medicine-search";
 
 type ThemeMode = "light" | "dark" | "system";
 type SearchState =
@@ -98,6 +99,7 @@ type MedicineRecord = {
   labelId: string | null;
   labelSetId: string | null;
   labelEffectiveDate: string | null;
+  matchedBy: MedicineMatchReason[];
 };
 
 type HealthCanadaRecord = {
@@ -118,6 +120,7 @@ type HealthCanadaRecord = {
   originalMarketDate: string;
   lastUpdated: string;
   officialRecord: string;
+  matchedBy: MedicineMatchReason[];
 };
 
 type HongKongRecord = {
@@ -126,12 +129,14 @@ type HongKongRecord = {
   permitNumber: string;
   activeIngredients: string[];
   officialRecord: string;
+  matchedBy: MedicineMatchReason[];
 };
 
 type UkDmdRecord = {
-  id: number;
+  id: string;
   type: string;
   name: string;
+  matchedBy: MedicineMatchReason[];
 };
 
 type ApprovalProduct = {
@@ -143,6 +148,7 @@ type ApprovalProduct = {
   dosageForm: string;
   route: string;
   marketingStatus: string;
+  matchedBy: MedicineMatchReason[];
 };
 
 type ApprovalSubmission = {
@@ -258,6 +264,7 @@ type EmaRecord = {
   identifierValue: string;
   productNameParts: string[];
   activeSubstanceParts: string[];
+  matchedBy: MedicineMatchReason[];
 };
 
 type EmaResponse = {
@@ -289,6 +296,7 @@ type EpiProduct = {
   marketingAuthorisationHolder: string;
   regulatoryAgency: string;
   documents: EpiDocument[];
+  matchedBy: MedicineMatchReason[];
 };
 
 type EpiResponse = {
@@ -297,6 +305,26 @@ type EpiResponse = {
   notice?: string;
   error?: string;
 };
+
+const matchReasonLabels: Record<MedicineMatchReason, string> = {
+  "brand-name": "Brand name",
+  ingredient: "Active ingredient",
+  "product-name": "Product name",
+  "product-title": "Product title",
+};
+
+function MatchProvenance({ reasons }: { reasons?: MedicineMatchReason[] }) {
+  if (!reasons?.length) {
+    return null;
+  }
+
+  return (
+    <p className="match-provenance">
+      <strong>Matched fields:</strong>{" "}
+      {reasons.map((reason) => matchReasonLabels[reason]).join(", ")}
+    </p>
+  );
+}
 
 function xhtmlToText(markup: string): string {
   const parsed = new DOMParser().parseFromString(markup, "text/html");
@@ -494,7 +522,7 @@ export default function Home() {
     setUkDmdResults([]);
     setUkDmdNotice("");
     setUkDmdReleaseDate("");
-    setUkDmdStatus(searchUkDmd ? "Searching UK dm+d product names..." : "");
+    setUkDmdStatus(searchUkDmd ? "Searching UK dm+d actual products..." : "");
     setEmaResults([]);
     setEmaNotice("");
     setEmaStatus(searchEma ? "Searching EMA PMS product records..." : "");
@@ -725,7 +753,7 @@ setStatus(
           setUkDmdResults(records);
           setUkDmdNotice(data.notice ?? "");
           setUkDmdReleaseDate(data.releaseDate ?? "");
-          setUkDmdStatus(`UK dm+d product matches: ${data.count ?? records.length}.`);
+          setUkDmdStatus(`UK dm+d actual-product matches: ${data.count ?? records.length}.`);
           setSourceStates((current) => ({
             ...current,
             ukDmd: records.length > 0 ? "found" : "empty",
@@ -945,6 +973,7 @@ setStatus(
                 <h3>{record.productName}</h3>
                 <span className="tag">Registered product listing</span>
               </div>
+              <MatchProvenance reasons={record.matchedBy} />
               <p>
                 <strong>Hong Kong registration number:</strong>{" "}
                 {record.permitNumber}
@@ -989,6 +1018,7 @@ setStatus(
   <h3>{record.brandName}</h3>
   <span className="tag">FDA label record</span>
 </div>
+<MatchProvenance reasons={record.matchedBy} />
 
 {isMatchableApplicationNumber(record.applicationNumber) ? (
   hasExactApplicationMatch(
@@ -1128,6 +1158,7 @@ setStatus(
             <p>
               <strong>Brand:</strong> {product.brandName}
             </p>
+            <MatchProvenance reasons={product.matchedBy} />
             <p>
               <strong>Ingredients:</strong>{" "}
               {product.ingredients
@@ -1213,6 +1244,7 @@ setStatus(
                 <h3>{record.brandName}</h3>
                 <span className="tag">Health Canada DPD</span>
               </div>
+              <MatchProvenance reasons={record.matchedBy} />
 
               <p><strong>DIN:</strong> {record.din}</p>
               <p><strong>Manufacturer:</strong> {record.manufacturer}</p>
@@ -1258,7 +1290,7 @@ setStatus(
 
       {(ukDmdStatus || ukDmdResults.length > 0) && (
         <section className="results-section" aria-live="polite">
-          <h2>UK dm+d product records</h2>
+          <h2>UK dm+d actual products</h2>
           <p className="status">{ukDmdStatus}</p>
           {ukDmdReleaseDate && (
             <p className="help">dm+d data release: {ukDmdReleaseDate}</p>
@@ -1270,9 +1302,10 @@ setStatus(
             <article className="result-card" key={`${record.type}-${record.id}`}>
               <div className="result-heading">
                 <h3>{record.name}</h3>
-                <span className="tag">{record.type}</span>
+                <span className="tag">{record.type} | Actual product</span>
               </div>
-              <p><strong>dm+d identifier:</strong> {record.id}</p>
+              <MatchProvenance reasons={record.matchedBy} />
+              <p><strong>dm+d APID:</strong> {record.id}</p>
               <p>
                 <a
                   href="https://products.mhra.gov.uk/"
@@ -1304,6 +1337,7 @@ setStatus(
                 <h3>{record.productName}</h3>
                 <span className="tag">EMA PMS</span>
               </div>
+              <MatchProvenance reasons={record.matchedBy} />
               <p>
                 <strong>FHIR product name:</strong> {record.productName}
               </p>
@@ -1357,6 +1391,7 @@ setStatus(
                 <h3>{product.productName}</h3>
                 <span className="tag">Public EMA ePI</span>
               </div>
+              <MatchProvenance reasons={product.matchedBy} />
               <p><strong>PI List ID:</strong> {product.listId}</p>
               <p><strong>ePI identifier:</strong> {product.identifier}</p>
               <p><strong>Marketing authorisation holder:</strong> {product.marketingAuthorisationHolder}</p>
@@ -1682,6 +1717,11 @@ setStatus(
           overflow-wrap: anywhere;
           line-height: 1.5;
           color: var(--text-primary);
+        }
+        .result-card .match-provenance {
+          margin-top: 8px;
+          color: var(--text-secondary);
+          font-size: 13px;
         }
         .source-grid {
           display: grid;

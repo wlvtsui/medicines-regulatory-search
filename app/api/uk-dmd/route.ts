@@ -1,17 +1,29 @@
+import { normalizeMedicineQuery, type MedicineMatchReason } from "@/lib/medicine-search";
+
 type DmdResult = {
-  id: number;
+  id: string;
   type: string;
   name: string;
+  matchedBy: MedicineMatchReason[];
 };
 
-type DmdServiceResponse = {
-  source?: string;
+type DmdApiResponse = {
+  table?: string;
   query?: string;
-  releaseDate?: string | null;
-  count?: number;
-  results?: DmdResult[];
+  results?: unknown;
+  pagination?: { total?: number };
   error?: string;
+  message?: string;
 };
+
+const DMDAPI_SEARCH_URL = "https://www.dmdapi.co.uk/api/v1/amp/search";
+
+function readString(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value).trim();
+  }
+  return "";
+}
 
 export async function GET(request: Request) {
   const term = new URL(request.url).searchParams.get("q")?.trim();
@@ -30,59 +42,88 @@ export async function GET(request: Request) {
     );
   }
 
-  const serviceUrl = process.env.DMD_SEARCH_API_URL;
-  if (!serviceUrl) {
+  const apiKey = process.env.DMDAPI_API_KEY?.trim();
+  if (!apiKey) {
     return Response.json(
-      { error: "UK dm+d search is not configured. Set DMD_SEARCH_API_URL." },
+      { error: "UK actual-product search is not configured. Set DMDAPI_API_KEY." },
       { status: 503 }
     );
   }
 
-  let url: URL;
-  try {
-    url = new URL(serviceUrl);
-  } catch {
-    return Response.json(
-      { error: "DMD_SEARCH_API_URL must be a valid absolute URL." },
-      { status: 500 }
-    );
-  }
-
-  url.searchParams.set("q", term);
+  const url = new URL(DMDAPI_SEARCH_URL);
+  url.searchParams.set("q", normalizeMedicineQuery(term));
 
   try {
     const response = await fetch(url, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(15000),
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      next: { revalidate: 300 },
+      signal: AbortSignal.timeout(20000),
     });
-    const data: DmdServiceResponse = await response.json();
+    const data: DmdApiResponse = await response.json();
 
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        return Response.json(
+          { error: "The dmdapi service rejected the configured API key." },
+          { status: 503 }
+        );
+      }
+      if (response.status === 429) {
+        return Response.json(
+          { error: "The dmdapi request limit has been reached. Please retry later." },
+          { status: 429 }
+        );
+      }
       return Response.json(
-        { error: data.error || "The UK dm+d search service returned an error." },
+        { error: data.message || data.error || "The dmdapi search service returned an error." },
         { status: 502 }
       );
     }
 
     if (!Array.isArray(data.results)) {
       return Response.json(
-        { error: "The UK dm+d search service returned an invalid response." },
+        { error: "The dmdapi search service returned an invalid response." },
         { status: 502 }
       );
     }
 
-    return Response.json({
-      source: data.source ?? "UK NHS Dictionary of Medicines and Devices (dm+d)",
-      query: term,
-      releaseDate: data.releaseDate ?? null,
-      count: data.results.length,
-      results: data.results,
-      notice:
-        "Results are token-prefix matches against dm+d product names, not an MHRA authorisation determination. Check the MHRA products database for regulatory status.",
+    const results: DmdResult[] = data.results.flatMap((value) => {
+      if (!value || typeof value !== "object") {
+        return [];
+      }
+
+      const record = value as Record<string, unknown>;
+      const name = readString(record.name ?? record.description);
+      const id = readString(record.apid ?? record.id ?? record.ampid);
+      if (!name || !id) {
+        return [];
+      }
+
+      return [{ id, type: "AMP", name, matchedBy: ["product-name"] }];
     });
-  } catch {
+
+    return Response.json({
+      source: "NHS dm+d Actual Medicinal Products (AMP) via dmdapi.co.uk",
+      query: term,
+      releaseDate: null,
+      count: results.length,
+      totalCount: data.pagination?.total ?? results.length,
+      results,
+      notice:
+        "Results are NHS dm+d Actual Medicinal Products (AMPs) returned by dmdapi.co.uk. A dm+d match does not establish MHRA authorisation; verify regulatory status in the official MHRA products database.",
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      return Response.json(
+        { error: "The dmdapi search timed out. Please try again." },
+        { status: 504 }
+      );
+    }
     return Response.json(
-      { error: "Could not connect to the UK dm+d search service." },
+      { error: "Could not connect to the dmdapi search service." },
       { status: 502 }
     );
   }

@@ -1,4 +1,6 @@
 
+import { matchesMedicineQuery, normalizeMedicineQuery, type MedicineMatchReason } from "@/lib/medicine-search";
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const term = searchParams.get("q")?.trim();
@@ -10,7 +12,8 @@ export async function GET(request: Request) {
     );
   }
 
-  if (term.length > 100 || !/^[a-zA-Z0-9\s.'-]+$/.test(term)) {
+  const searchTerm = normalizeMedicineQuery(term);
+  if (searchTerm.length > 100 || !/^[a-zA-Z0-9\s.'-]+$/.test(searchTerm)) {
     return Response.json(
       { error: "Use a medicine name with letters or numbers only." },
       { status: 400 }
@@ -18,8 +21,8 @@ export async function GET(request: Request) {
   }
 
   const search = [
-    `openfda.generic_name:"${term}"`,
-    `openfda.brand_name:"${term}"`,
+    `openfda.generic_name:"${searchTerm}"`,
+    `openfda.brand_name:"${searchTerm}"`,
   ].join(" OR ");
 
   const url = new URL("https://api.fda.gov/drug/label.json");
@@ -65,23 +68,36 @@ export async function GET(request: Request) {
         };
         set_id?: string;
         effective_time?: string;
-      }) => ({
-        brandName: record.openfda?.brand_name?.[0] ?? "Not listed",
-        genericName:
-          record.openfda?.generic_name?.[0] ?? "Not listed",
-        manufacturer:
-          record.openfda?.manufacturer_name?.[0] ?? "Not listed",
-        dosageForm:
-          record.openfda?.dosage_form?.[0] ?? "Not listed",
-        route: record.openfda?.route?.[0] ?? "Not listed",
-        applicationNumber:
-          record.openfda?.application_number?.[0] ?? null,
-        productNdc: record.openfda?.product_ndc?.[0] ?? null,
-        labelId: record.openfda?.spl_id?.[0] ?? null,
-        labelSetId:
-          record.openfda?.spl_set_id?.[0] ?? record.set_id ?? null,
-        labelEffectiveDate: record.effective_time ?? null,
-      })
+      }) => {
+        const brandNames = record.openfda?.brand_name ?? [];
+        const genericNames = record.openfda?.generic_name ?? [];
+        const matchedBy: MedicineMatchReason[] = [];
+
+        if (brandNames.some((name) => matchesMedicineQuery(name, term))) {
+          matchedBy.push("brand-name");
+        }
+        if (genericNames.some((name) => matchesMedicineQuery(name, term))) {
+          matchedBy.push("ingredient");
+        }
+
+        return {
+          brandName: brandNames[0] ?? "Not listed",
+          genericName: genericNames[0] ?? "Not listed",
+          manufacturer:
+            record.openfda?.manufacturer_name?.[0] ?? "Not listed",
+          dosageForm:
+            record.openfda?.dosage_form?.[0] ?? "Not listed",
+          route: record.openfda?.route?.[0] ?? "Not listed",
+          applicationNumber:
+            record.openfda?.application_number?.[0] ?? null,
+          productNdc: record.openfda?.product_ndc?.[0] ?? null,
+          labelId: record.openfda?.spl_id?.[0] ?? null,
+          labelSetId:
+            record.openfda?.spl_set_id?.[0] ?? record.set_id ?? null,
+          labelEffectiveDate: record.effective_time ?? null,
+          matchedBy,
+        };
+      }
     );
 
     return Response.json({

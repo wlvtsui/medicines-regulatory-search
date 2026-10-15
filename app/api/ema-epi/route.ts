@@ -1,3 +1,5 @@
+import { normalizeMedicineQuery, type MedicineMatchReason } from "@/lib/medicine-search";
+
 type JsonRecord = Record<string, unknown>;
 
 type EpiSection = {
@@ -22,6 +24,7 @@ type EpiProduct = {
   marketingAuthorisationHolder: string;
   regulatoryAgency: string;
   documents: EpiDocument[];
+  matchedBy: MedicineMatchReason[];
 };
 
 type FhirListSearchResponse = {
@@ -170,7 +173,7 @@ async function fetchDocument(bundleId: string): Promise<EpiDocument | undefined>
 }
 
 export async function GET(request: Request) {
-  const term = new URL(request.url).searchParams.get("q")?.replace(/\s+/g, " ").trim();
+  const term = normalizeMedicineQuery(new URL(request.url).searchParams.get("q") ?? "");
 
   if (!term) {
     return Response.json({ error: "Please provide a medicine name using ?q=" }, { status: 400 });
@@ -250,6 +253,7 @@ export async function GET(request: Request) {
         marketingAuthorisationHolder: getListExtensionDisplay(list, "marketingAuthorisationHolder") || "Not listed",
         regulatoryAgency: getListExtensionDisplay(list, "regulatoryAgency") || "Not listed",
         documents: documentsByList.get(listId) ?? [],
+        matchedBy: ["product-title"],
       }];
     });
 

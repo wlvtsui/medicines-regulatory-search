@@ -1,3 +1,5 @@
+import { normalizeMedicineQuery, type MedicineMatchReason } from "@/lib/medicine-search";
+
 type EmaSearchResult = {
   productName: string;
   activeSubstance: string;
@@ -11,6 +13,7 @@ type EmaSearchResult = {
   identifierValue: string;
   productNameParts: string[];
   activeSubstanceParts: string[];
+  matchedBy: MedicineMatchReason[];
 };
 
 type FhirResource = Record<string, unknown>;
@@ -25,7 +28,7 @@ type FhirBundle = {
 const RESULT_LIMIT = 10;
 
 function normalizeQuery(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
+  return normalizeMedicineQuery(value);
 }
 
 function asArray<T>(value: unknown): T[] {
@@ -267,6 +270,7 @@ function normalizeFhirSearchResults(bundle: FhirBundle, base: string): EmaSearch
       identifierValue,
       productNameParts: nameParts.productNameParts,
       activeSubstanceParts: nameParts.activeSubstanceParts,
+      matchedBy: ["product-name"],
     });
   }
 

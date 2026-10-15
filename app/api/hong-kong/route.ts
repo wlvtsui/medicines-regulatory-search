@@ -1,4 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
+import { matchesMedicineQuery, type MedicineMatchReason } from "@/lib/medicine-search";
 
 type XmlRecord = Record<string, unknown>;
 
@@ -8,6 +9,7 @@ type HongKongRecord = {
   permitNumber: string;
   activeIngredients: string[];
   officialRecord: string;
+  matchedBy: MedicineMatchReason[];
 };
 
 const FEED_URL = "https://www.drugoffice.gov.hk/eps/psi/DrugList.xml";
@@ -43,10 +45,6 @@ function asText(value: unknown): string {
   return typeof record?.["#text"] === "string"
     ? record["#text"].trim()
     : "";
-}
-
-function normalizeSearchText(value: string): string {
-  return value.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
 }
 
 export async function GET(request: Request) {
@@ -87,7 +85,6 @@ export async function GET(request: Request) {
     }
 
     const lastUpdated = asText(feedRoot.lastUpdate) || "Not provided";
-    const query = normalizeSearchText(term);
     const allProducts = asArray(feedRoot.drug)
       .map(asRecord)
       .filter((product): product is XmlRecord => Boolean(product));
@@ -101,13 +98,15 @@ export async function GET(request: Request) {
         .map(asText)
         .filter(Boolean);
 
-      const matchesQuery =
-        normalizeSearchText(productName).includes(query) ||
-        activeIngredients.some((ingredient) =>
-          normalizeSearchText(ingredient).includes(query)
-        );
+      const matchedBy: MedicineMatchReason[] = [];
+      if (matchesMedicineQuery(productName, term)) {
+        matchedBy.push("product-name");
+      }
+      if (activeIngredients.some((ingredient) => matchesMedicineQuery(ingredient, term))) {
+        matchedBy.push("ingredient");
+      }
 
-      return matchesQuery
+      return matchedBy.length > 0
         ? [
             {
               productName: productName || "Not listed",
@@ -115,6 +114,7 @@ export async function GET(request: Request) {
               permitNumber: permitNumber || "Not listed",
               activeIngredients,
               officialRecord: OFFICIAL_SEARCH_URL,
+              matchedBy,
             },
           ]
         : [];

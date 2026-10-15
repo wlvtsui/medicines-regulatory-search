@@ -1,4 +1,6 @@
 
+import { matchesMedicineQuery, normalizeMedicineQuery, type MedicineMatchReason } from "@/lib/medicine-search";
+
 type Ingredient = {
   name?: string;
   strength?: string;
@@ -85,9 +87,10 @@ export async function GET(request: Request) {
       );
     }
 
+    const searchTerm = normalizeMedicineQuery(term);
     if (
-      term.length > 100 ||
-      !/^[a-zA-Z0-9\s.'-]+$/.test(term)
+      searchTerm.length > 100 ||
+      !/^[a-zA-Z0-9\s.'-]+$/.test(searchTerm)
     ) {
       return Response.json(
         {
@@ -102,8 +105,8 @@ export async function GET(request: Request) {
     searchMode = "medicine name";
 
     search = [
-      `products.brand_name:"${term}"`,
-      `products.active_ingredients.name:"${term}"`,
+      `products.brand_name:"${searchTerm}"`,
+      `products.active_ingredients.name:"${searchTerm}"`,
     ].join(" OR ");
   }
 
@@ -152,22 +155,33 @@ export async function GET(request: Request) {
       sponsor:
         record.sponsor_name ?? "Not listed",
 
-      products: (record.products ?? []).map((product) => ({
-        brandName: product.brand_name ?? "Not listed",
+      products: (record.products ?? []).map((product) => {
+        const matchedBy: MedicineMatchReason[] = [];
+        if (product.brand_name && matchesMedicineQuery(product.brand_name, query)) {
+          matchedBy.push("brand-name");
+        }
+        if (
+          (product.active_ingredients ?? []).some(
+            (ingredient) => ingredient.name && matchesMedicineQuery(ingredient.name, query)
+          )
+        ) {
+          matchedBy.push("ingredient");
+        }
 
-        ingredients: (product.active_ingredients ?? []).map(
-          (ingredient) => ({
-            name: ingredient.name ?? "Not listed",
-            strength: ingredient.strength ?? "Not listed",
-          })
-        ),
-
-        dosageForm: product.dosage_form ?? "Not listed",
-        route: product.route ?? "Not listed",
-
-        marketingStatus:
-          product.marketing_status ?? "Not listed",
-      })),
+        return {
+          brandName: product.brand_name ?? "Not listed",
+          ingredients: (product.active_ingredients ?? []).map(
+            (ingredient) => ({
+              name: ingredient.name ?? "Not listed",
+              strength: ingredient.strength ?? "Not listed",
+            })
+          ),
+          dosageForm: product.dosage_form ?? "Not listed",
+          route: product.route ?? "Not listed",
+          marketingStatus: product.marketing_status ?? "Not listed",
+          matchedBy,
+        };
+      }),
 
       submissions: (record.submissions ?? []).map(
         (submission) => ({

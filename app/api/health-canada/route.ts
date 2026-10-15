@@ -1,3 +1,5 @@
+import { matchesMedicineQuery, normalizeMedicineQuery, type MedicineMatchReason } from "@/lib/medicine-search";
+
 type DpdProduct = {
   drug_code?: number;
   drug_identification_number?: string;
@@ -47,6 +49,7 @@ type HealthCanadaResult = {
   originalMarketDate: string;
   lastUpdated: string;
   officialRecord: string;
+  matchedBy: MedicineMatchReason[];
 };
 
 const DPD_API = "https://health-products.canada.ca/api/drug/";
@@ -117,10 +120,11 @@ export async function GET(request: Request) {
     );
   }
 
+  const searchTerm = normalizeMedicineQuery(term);
   const [productSearch, ingredientSearch] = await Promise.allSettled([
-    fetchDpdRecords<DpdProduct>("drugproduct/", { brandname: term }),
+    fetchDpdRecords<DpdProduct>("drugproduct/", { brandname: searchTerm }),
     fetchDpdRecords<DpdIngredient>("activeingredient/", {
-      ingredientname: term,
+      ingredientname: searchTerm,
     }),
   ]);
 
@@ -213,6 +217,22 @@ export async function GET(request: Request) {
         detailFailures += 1;
       }
 
+      const matchedBy: MedicineMatchReason[] = [];
+      if (
+        resolvedProduct?.brand_name &&
+        matchesMedicineQuery(resolvedProduct.brand_name, term)
+      ) {
+        matchedBy.push("brand-name");
+      }
+      if (
+        resolvedIngredients.some((ingredient) =>
+          ingredient.ingredient_name &&
+          matchesMedicineQuery(ingredient.ingredient_name, term)
+        )
+      ) {
+        matchedBy.push("ingredient");
+      }
+
       return {
         drugCode,
         din: resolvedProduct?.drug_identification_number ?? "Not listed",
@@ -237,6 +257,7 @@ export async function GET(request: Request) {
         originalMarketDate: status?.original_market_date ?? "Not listed",
         lastUpdated: resolvedProduct?.last_update_date ?? "Not listed",
         officialRecord: `https://health-products.canada.ca/dpd-bdpp/info?lang=eng&code=${drugCode}`,
+        matchedBy,
       };
     })
   );
