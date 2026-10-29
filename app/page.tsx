@@ -379,6 +379,30 @@ function EpiSectionList({ sections }: { sections: EpiSection[] }) {
   );
 }
 
+// Client-side mirror of the server-side EU domain filter used by the EMA PMS
+// API route. Keeps the UI consistent even if the server response changes.
+const EMA_EU_DOMAIN_CODES = new Set([
+  "EU",
+  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR",
+  "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK",
+  "SI", "ES", "SE",
+]);
+
+function isEmaEuDomain(domainCode: string, domainLabel: string): boolean {
+  const code = (domainCode || "").trim();
+  const label = (domainLabel || "").trim().toLowerCase();
+
+  if (!code || code === "Not listed") {
+    return false;
+  }
+
+  if (EMA_EU_DOMAIN_CODES.has(code)) {
+    return true;
+  }
+
+  return label.includes("european union");
+}
+
 export default function Home() {
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("All");
@@ -419,6 +443,7 @@ export default function Home() {
   const [emaResults, setEmaResults] = useState<EmaRecord[]>([]);
   const [emaStatus, setEmaStatus] = useState("");
   const [emaNotice, setEmaNotice] = useState("");
+  const [emaEuOnly, setEmaEuOnly] = useState(true);
   const [epiResults, setEpiResults] = useState<EpiProduct[]>([]);
   const [epiStatus, setEpiStatus] = useState("");
   const [epiNotice, setEpiNotice] = useState("");
@@ -773,7 +798,7 @@ setStatus(
       searchTasks.push((async () => {
         try {
           const response = await fetch(
-            `/api/ema?q=${encodeURIComponent(term)}`
+            `/api/ema?q=${encodeURIComponent(term)}&euOnly=${emaEuOnly}`
           );
           const data: EmaResponse = await response.json();
 
@@ -1331,12 +1356,33 @@ setStatus(
 
           {emaNotice && <p className="notice">{emaNotice}</p>}
 
-          {emaResults.map((record, index) => (
-            <article className="result-card" key={`${record.productName}-${index}`}>
-              <div className="result-heading">
-                <h3>{record.productName}</h3>
-                <span className="tag">EMA PMS</span>
-              </div>
+          <div className="ema-scope">
+            <label htmlFor="ema-scope">EMA PMS scope:</label>
+            <select
+              id="ema-scope"
+              value={emaEuOnly ? "eu" : "all"}
+              onChange={(event) => setEmaEuOnly(event.target.value === "eu")}
+            >
+              <option value="eu">EU/EEA products only</option>
+              <option value="all">All products (including non-EU)</option>
+            </select>
+          </div>
+
+          {emaResults
+            .filter((record) =>
+              emaEuOnly
+                ? isEmaEuDomain(record.domainCode, record.domainLabel)
+                : true
+            )
+            .map((record, index) => (
+              <article
+                className="result-card"
+                key={`${record.productName}-${index}`}
+              >
+                <div className="result-heading">
+                  <h3>{record.productName}</h3>
+                  <span className="tag">EMA PMS</span>
+                </div>
               <MatchProvenance reasons={record.matchedBy} />
               <p>
                 <strong>FHIR product name:</strong> {record.productName}
@@ -1373,7 +1419,12 @@ setStatus(
             </article>
           ))}
 
-          {emaResults.length === 0 && sourceStates.emaPms === "empty" && (
+          {emaResults
+            .filter((record) =>
+              emaEuOnly
+                ? isEmaEuDomain(record.domainCode, record.domainLabel)
+                : true
+            ).length === 0 && sourceStates.emaPms === "empty" && (
             <p>No matching EMA PMS product records were returned.</p>
           )}
         </section>

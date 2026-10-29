@@ -31,6 +31,38 @@ function normalizeQuery(value: string): string {
   return normalizeMedicineQuery(value);
 }
 
+// FHIR R5 `domain` codes that EMA PMS treats as European Union / EEA member
+// states. A product is considered "EU only" when its domain code is one of
+// these, or when its domain label mentions the European Union. Records whose
+// domain cannot be determined are treated as non-EU so the default "EU only"
+// view stays conservative.
+const EU_DOMAIN_CODES = new Set([
+  "EU",
+  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR",
+  "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK",
+  "SI", "ES", "SE",
+]);
+
+function isEUDomain(domainCode: string, domainLabel: string): boolean {
+  const code = (domainCode || "").trim();
+  const label = (domainLabel || "").trim().toLowerCase();
+
+  // Unknown / not returned by the API: treat as non-EU for a conservative EU-only view.
+  if (!code || code === "Not listed") {
+    return false;
+  }
+
+  if (EU_DOMAIN_CODES.has(code)) {
+    return true;
+  }
+
+  if (label.includes("european union")) {
+    return true;
+  }
+
+  return false;
+}
+
 function asArray<T>(value: unknown): T[] {
   if (Array.isArray(value)) {
     return value as T[];
@@ -363,6 +395,8 @@ export async function GET(request: Request) {
   }
 
   const normalizedTerm = normalizeQuery(term);
+  const euOnly =
+    new URL(request.url).searchParams.get("euOnly") !== "false";
 
   if (
     normalizedTerm.length > 100 ||
@@ -405,9 +439,16 @@ export async function GET(request: Request) {
       entry.status === "fulfilled" ? entry.value : []
     );
 
+    const euFiltered =
+      euOnly === false
+        ? combined
+        : combined.filter((record) =>
+            isEUDomain(record.domainCode, record.domainLabel)
+          );
+
     const deduped = Array.from(
       new Map(
-        combined.map((record) => [
+        euFiltered.map((record) => [
           `${record.officialRecord}|${record.productName}`,
           record,
         ])
