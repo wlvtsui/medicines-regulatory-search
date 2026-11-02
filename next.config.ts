@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    agentUpgrade: 'latest',
+  },
   cacheComponents: true,
   partialPrefetching: true,
   watchOptions: {
