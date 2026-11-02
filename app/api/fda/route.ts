@@ -1,5 +1,11 @@
 
-import { matchesMedicineQuery, normalizeMedicineQuery, type MedicineMatchReason } from "@/lib/medicine-search";
+import {
+  getMedicineQueryVariants,
+  matchesMedicineQuery,
+  normalizeMedicineQuery,
+  type MedicineAliasProvenance,
+  type MedicineMatchReason,
+} from "@/lib/medicine-search";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -20,8 +26,11 @@ export async function GET(request: Request) {
     );
   }
 
+  const queryVariants = getMedicineQueryVariants(term);
   const search = [
-    `openfda.generic_name:"${searchTerm}"`,
+    ...queryVariants.map(
+      (variant) => `openfda.generic_name:"${variant.term}"`
+    ),
     `openfda.brand_name:"${searchTerm}"`,
   ].join(" OR ");
 
@@ -72,11 +81,14 @@ export async function GET(request: Request) {
         const brandNames = record.openfda?.brand_name ?? [];
         const genericNames = record.openfda?.generic_name ?? [];
         const matchedBy: MedicineMatchReason[] = [];
+        const matchedVariants = queryVariants.filter((variant) =>
+          genericNames.some((name) => matchesMedicineQuery(name, variant.term))
+        );
 
         if (brandNames.some((name) => matchesMedicineQuery(name, term))) {
           matchedBy.push("brand-name");
         }
-        if (genericNames.some((name) => matchesMedicineQuery(name, term))) {
+        if (matchedVariants.length > 0) {
           matchedBy.push("ingredient");
         }
 
@@ -96,6 +108,9 @@ export async function GET(request: Request) {
             record.openfda?.spl_set_id?.[0] ?? record.set_id ?? null,
           labelEffectiveDate: record.effective_time ?? null,
           matchedBy,
+          matchedVia: matchedVariants.flatMap((variant) =>
+            variant.alias ? [variant.alias] : []
+          ) as MedicineAliasProvenance[],
         };
       }
     );

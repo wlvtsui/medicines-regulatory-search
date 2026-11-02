@@ -1,4 +1,10 @@
-import { matchesMedicineQuery, normalizeMedicineQuery, type MedicineMatchReason } from "@/lib/medicine-search";
+import {
+  getMedicineQueryVariants,
+  matchesMedicineQuery,
+  normalizeMedicineQuery,
+  type MedicineAliasProvenance,
+  type MedicineMatchReason,
+} from "@/lib/medicine-search";
 
 type DpdProduct = {
   drug_code?: number;
@@ -50,6 +56,7 @@ type HealthCanadaResult = {
   lastUpdated: string;
   officialRecord: string;
   matchedBy: MedicineMatchReason[];
+  matchedVia: MedicineAliasProvenance[];
 };
 
 const DPD_API = "https://health-products.canada.ca/api/drug/";
@@ -121,21 +128,30 @@ export async function GET(request: Request) {
   }
 
   const searchTerm = normalizeMedicineQuery(term);
-  const [productSearch, ingredientSearch] = await Promise.allSettled([
+  const queryVariants = getMedicineQueryVariants(term);
+  const settledSearches = await Promise.allSettled([
     fetchDpdRecords<DpdProduct>("drugproduct/", { brandname: searchTerm }),
-    fetchDpdRecords<DpdIngredient>("activeingredient/", {
-      ingredientname: searchTerm,
-    }),
+    ...queryVariants.map((variant) =>
+      fetchDpdRecords<DpdIngredient>("activeingredient/", {
+        ingredientname: variant.term,
+      })
+    ),
   ]);
 
+  const productSearch = settledSearches[0];
   const productRecords =
     productSearch.status === "fulfilled" ? productSearch.value : [];
-  const ingredientRecords =
-    ingredientSearch.status === "fulfilled" ? ingredientSearch.value : [];
+  const ingredientSearches = settledSearches.slice(1).map((result, index) => ({
+    result,
+    variant: queryVariants[index],
+  }));
+  const ingredientRecords = ingredientSearches.flatMap(({ result }) =>
+    result.status === "fulfilled" ? result.value : []
+  );
 
   if (
     productSearch.status === "rejected" &&
-    ingredientSearch.status === "rejected"
+    ingredientSearches.every(({ result }) => result.status === "rejected")
   ) {
     return Response.json(
       { error: "The Health Canada DPD service is temporarily unavailable." },
@@ -217,6 +233,13 @@ export async function GET(request: Request) {
         detailFailures += 1;
       }
 
+      const matchedVariants = queryVariants.filter((variant) =>
+        resolvedIngredients.some(
+          (ingredient) =>
+            ingredient.ingredient_name &&
+            matchesMedicineQuery(ingredient.ingredient_name, variant.term)
+        )
+      );
       const matchedBy: MedicineMatchReason[] = [];
       if (
         resolvedProduct?.brand_name &&
@@ -224,12 +247,7 @@ export async function GET(request: Request) {
       ) {
         matchedBy.push("brand-name");
       }
-      if (
-        resolvedIngredients.some((ingredient) =>
-          ingredient.ingredient_name &&
-          matchesMedicineQuery(ingredient.ingredient_name, term)
-        )
-      ) {
+      if (matchedVariants.length > 0) {
         matchedBy.push("ingredient");
       }
 
@@ -258,6 +276,9 @@ export async function GET(request: Request) {
         lastUpdated: resolvedProduct?.last_update_date ?? "Not listed",
         officialRecord: `https://health-products.canada.ca/dpd-bdpp/info?lang=eng&code=${drugCode}`,
         matchedBy,
+        matchedVia: matchedVariants.flatMap((variant) =>
+          variant.alias ? [variant.alias] : []
+        ),
       };
     })
   );
@@ -266,7 +287,10 @@ export async function GET(request: Request) {
     "These are Health Canada Drug Product Database records. Reported product status is shown as supplied by the DPD and should be checked against the official record.",
   ];
 
-  if (productSearch.status === "rejected" || ingredientSearch.status === "rejected") {
+  if (
+    productSearch.status === "rejected" ||
+    ingredientSearches.some(({ result }) => result.status === "rejected")
+  ) {
     notices.push("One of the DPD search methods was unavailable; results may be incomplete.");
   }
 

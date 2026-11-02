@@ -2,7 +2,10 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import type { MedicineMatchReason } from "@/lib/medicine-search";
+import type {
+  MedicineAliasProvenance,
+  MedicineMatchReason,
+} from "@/lib/medicine-search";
 
 type ThemeMode = "light" | "dark" | "system";
 type SearchState =
@@ -100,6 +103,7 @@ type MedicineRecord = {
   labelSetId: string | null;
   labelEffectiveDate: string | null;
   matchedBy: MedicineMatchReason[];
+  matchedVia: MedicineAliasProvenance[];
 };
 
 type HealthCanadaRecord = {
@@ -121,6 +125,7 @@ type HealthCanadaRecord = {
   lastUpdated: string;
   officialRecord: string;
   matchedBy: MedicineMatchReason[];
+  matchedVia: MedicineAliasProvenance[];
 };
 
 type HongKongRecord = {
@@ -130,6 +135,7 @@ type HongKongRecord = {
   activeIngredients: string[];
   officialRecord: string;
   matchedBy: MedicineMatchReason[];
+  matchedVia: MedicineAliasProvenance[];
 };
 
 type UkDmdRecord = {
@@ -149,6 +155,7 @@ type ApprovalProduct = {
   route: string;
   marketingStatus: string;
   matchedBy: MedicineMatchReason[];
+  matchedVia: MedicineAliasProvenance[];
 };
 
 type ApprovalSubmission = {
@@ -313,15 +320,36 @@ const matchReasonLabels: Record<MedicineMatchReason, string> = {
   "product-title": "Product title",
 };
 
-function MatchProvenance({ reasons }: { reasons?: MedicineMatchReason[] }) {
-  if (!reasons?.length) {
+function MatchProvenance({
+  reasons,
+  aliases,
+}: {
+  reasons?: MedicineMatchReason[];
+  aliases?: MedicineAliasProvenance[];
+}) {
+  if (!reasons?.length && !aliases?.length) {
     return null;
   }
 
   return (
     <p className="match-provenance">
-      <strong>Matched fields:</strong>{" "}
-      {reasons.map((reason) => matchReasonLabels[reason]).join(", ")}
+      {reasons && reasons.length > 0 && (
+        <>
+          <strong>Matched fields:</strong>{" "}
+          {reasons.map((reason) => matchReasonLabels[reason]).join(", ")}
+        </>
+      )}
+      {aliases && aliases.length > 0 && (
+        <>
+          {reasons && reasons.length > 0 ? "; " : null}
+          <strong>Matched via alias:</strong>{" "}
+          {aliases
+            .map((alias) =>
+              `${alias.matchedTerm} (alias of ${alias.aliasOf}; ${alias.source} ${alias.conceptId})`
+            )
+            .join(", ")}
+        </>
+      )}
     </p>
   );
 }
@@ -998,7 +1026,7 @@ setStatus(
                 <h3>{record.productName}</h3>
                 <span className="tag">Registered product listing</span>
               </div>
-              <MatchProvenance reasons={record.matchedBy} />
+              <MatchProvenance reasons={record.matchedBy} aliases={record.matchedVia} />
               <p>
                 <strong>Hong Kong registration number:</strong>{" "}
                 {record.permitNumber}
@@ -1043,7 +1071,7 @@ setStatus(
   <h3>{record.brandName}</h3>
   <span className="tag">FDA label record</span>
 </div>
-<MatchProvenance reasons={record.matchedBy} />
+<MatchProvenance reasons={record.matchedBy} aliases={record.matchedVia} />
 
 {isMatchableApplicationNumber(record.applicationNumber) ? (
   hasExactApplicationMatch(
@@ -1183,7 +1211,7 @@ setStatus(
             <p>
               <strong>Brand:</strong> {product.brandName}
             </p>
-            <MatchProvenance reasons={product.matchedBy} />
+            <MatchProvenance reasons={product.matchedBy} aliases={product.matchedVia} />
             <p>
               <strong>Ingredients:</strong>{" "}
               {product.ingredients
@@ -1269,7 +1297,7 @@ setStatus(
                 <h3>{record.brandName}</h3>
                 <span className="tag">Health Canada DPD</span>
               </div>
-              <MatchProvenance reasons={record.matchedBy} />
+              <MatchProvenance reasons={record.matchedBy} aliases={record.matchedVia} />
 
               <p><strong>DIN:</strong> {record.din}</p>
               <p><strong>Manufacturer:</strong> {record.manufacturer}</p>

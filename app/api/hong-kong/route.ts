@@ -1,5 +1,10 @@
 import { XMLParser } from "fast-xml-parser";
-import { matchesMedicineQuery, type MedicineMatchReason } from "@/lib/medicine-search";
+import {
+  getMedicineQueryVariants,
+  matchesMedicineQuery,
+  type MedicineAliasProvenance,
+  type MedicineMatchReason,
+} from "@/lib/medicine-search";
 
 type XmlRecord = Record<string, unknown>;
 
@@ -10,6 +15,7 @@ type HongKongRecord = {
   activeIngredients: string[];
   officialRecord: string;
   matchedBy: MedicineMatchReason[];
+  matchedVia: MedicineAliasProvenance[];
 };
 
 const FEED_URL = "https://www.drugoffice.gov.hk/eps/psi/DrugList.xml";
@@ -85,6 +91,7 @@ export async function GET(request: Request) {
     }
 
     const lastUpdated = asText(feedRoot.lastUpdate) || "Not provided";
+    const queryVariants = getMedicineQueryVariants(term);
     const allProducts = asArray(feedRoot.drug)
       .map(asRecord)
       .filter((product): product is XmlRecord => Boolean(product));
@@ -102,7 +109,12 @@ export async function GET(request: Request) {
       if (matchesMedicineQuery(productName, term)) {
         matchedBy.push("product-name");
       }
-      if (activeIngredients.some((ingredient) => matchesMedicineQuery(ingredient, term))) {
+      const matchedIngredientVariants = queryVariants.filter((variant) =>
+        activeIngredients.some((ingredient) =>
+          matchesMedicineQuery(ingredient, variant.term)
+        )
+      );
+      if (matchedIngredientVariants.length > 0) {
         matchedBy.push("ingredient");
       }
 
@@ -115,6 +127,9 @@ export async function GET(request: Request) {
               activeIngredients,
               officialRecord: OFFICIAL_SEARCH_URL,
               matchedBy,
+              matchedVia: matchedIngredientVariants.flatMap((variant) =>
+                variant.alias ? [variant.alias] : []
+              ),
             },
           ]
         : [];

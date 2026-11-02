@@ -1,5 +1,10 @@
-
-import { matchesMedicineQuery, normalizeMedicineQuery, type MedicineMatchReason } from "@/lib/medicine-search";
+import {
+  getMedicineQueryVariants,
+  matchesMedicineQuery,
+  normalizeMedicineQuery,
+  type MedicineAliasProvenance,
+  type MedicineMatchReason,
+} from "@/lib/medicine-search";
 
 type Ingredient = {
   name?: string;
@@ -53,7 +58,6 @@ export async function GET(request: Request) {
 
   const applicationNumber =
     searchParams.get("applicationNumber")?.trim().toUpperCase();
-
   const term = searchParams.get("q")?.trim();
 
   let search: string;
@@ -65,10 +69,7 @@ export async function GET(request: Request) {
 
     if (!/^(NDA|ANDA|BLA)\d+$/.test(normalizedNumber)) {
       return Response.json(
-        {
-          error:
-            "Enter a valid FDA application number, such as ANDA207229.",
-        },
+        { error: "Enter a valid FDA application number, such as ANDA207229." },
         { status: 400 }
       );
     }
@@ -93,34 +94,29 @@ export async function GET(request: Request) {
       !/^[a-zA-Z0-9\s.'-]+$/.test(searchTerm)
     ) {
       return Response.json(
-        {
-          error:
-            "Please use letters, numbers, spaces, or basic punctuation.",
-        },
+        { error: "Please use letters, numbers, spaces, or basic punctuation." },
         { status: 400 }
       );
     }
 
     query = term;
     searchMode = "medicine name";
+    const queryVariants = getMedicineQueryVariants(term);
 
     search = [
       `products.brand_name:"${searchTerm}"`,
-      `products.active_ingredients.name:"${searchTerm}"`,
+      ...queryVariants.map(
+        (variant) => `products.active_ingredients.name:"${variant.term}"`
+      ),
     ].join(" OR ");
   }
 
-  const url = new URL(
-    "https://api.fda.gov/drug/drugsfda.json"
-  );
-
+  const url = new URL("https://api.fda.gov/drug/drugsfda.json");
   url.searchParams.set("search", search);
   url.searchParams.set("limit", "10");
 
   try {
-    const response = await fetch(url.toString(), {
-      cache: "no-store",
-    });
+    const response = await fetch(url.toString(), { cache: "no-store" });
 
     if (response.status === 404) {
       return Response.json({
@@ -136,67 +132,63 @@ export async function GET(request: Request) {
 
     if (!response.ok) {
       return Response.json(
-        {
-          error:
-            "The FDA approval-record service returned an error.",
-        },
+        { error: "The FDA approval-record service returned an error." },
         { status: 502 }
       );
     }
 
     const data = await response.json();
+    const queryVariants = searchMode === "medicine name"
+      ? getMedicineQueryVariants(query)
+      : [];
 
     const results = (
       (data.results as FDAApplication[] | undefined) ?? []
     ).map((record) => ({
-      applicationNumber:
-        record.application_number ?? "Not listed",
-
-      sponsor:
-        record.sponsor_name ?? "Not listed",
-
+      applicationNumber: record.application_number ?? "Not listed",
+      sponsor: record.sponsor_name ?? "Not listed",
       products: (record.products ?? []).map((product) => {
+        const matchedVariants = queryVariants.filter((variant) =>
+          (product.active_ingredients ?? []).some(
+            (ingredient) =>
+              ingredient.name && matchesMedicineQuery(ingredient.name, variant.term)
+          )
+        );
         const matchedBy: MedicineMatchReason[] = [];
-        if (product.brand_name && matchesMedicineQuery(product.brand_name, query)) {
+
+        if (
+          searchMode === "medicine name" &&
+          product.brand_name &&
+          matchesMedicineQuery(product.brand_name, query)
+        ) {
           matchedBy.push("brand-name");
         }
-        if (
-          (product.active_ingredients ?? []).some(
-            (ingredient) => ingredient.name && matchesMedicineQuery(ingredient.name, query)
-          )
-        ) {
+        if (matchedVariants.length > 0) {
           matchedBy.push("ingredient");
         }
 
         return {
           brandName: product.brand_name ?? "Not listed",
-          ingredients: (product.active_ingredients ?? []).map(
-            (ingredient) => ({
-              name: ingredient.name ?? "Not listed",
-              strength: ingredient.strength ?? "Not listed",
-            })
-          ),
+          ingredients: (product.active_ingredients ?? []).map((ingredient) => ({
+            name: ingredient.name ?? "Not listed",
+            strength: ingredient.strength ?? "Not listed",
+          })),
           dosageForm: product.dosage_form ?? "Not listed",
           route: product.route ?? "Not listed",
           marketingStatus: product.marketing_status ?? "Not listed",
           matchedBy,
+          matchedVia: matchedVariants.flatMap((variant) =>
+            variant.alias ? [variant.alias] : []
+          ) as MedicineAliasProvenance[],
         };
       }),
-
-      submissions: (record.submissions ?? []).map(
-        (submission) => ({
-          type: submission.submission_type ?? "Not listed",
-          status: submission.submission_status ?? "Not listed",
-          statusDate:
-            submission.submission_status_date ?? "Not listed",
-          number:
-            submission.submission_number ?? "Not listed",
-        })
-      ),
-
-      officialRecord: drugsAtFdaOverviewUrl(
-        record.application_number
-      ),
+      submissions: (record.submissions ?? []).map((submission) => ({
+        type: submission.submission_type ?? "Not listed",
+        status: submission.submission_status ?? "Not listed",
+        statusDate: submission.submission_status_date ?? "Not listed",
+        number: submission.submission_number ?? "Not listed",
+      })),
+      officialRecord: drugsAtFdaOverviewUrl(record.application_number),
     }));
 
     return Response.json({
@@ -210,10 +202,7 @@ export async function GET(request: Request) {
     });
   } catch {
     return Response.json(
-      {
-        error:
-          "Could not connect to the FDA data service.",
-      },
+      { error: "Could not connect to the FDA data service." },
       { status: 502 }
     );
   }

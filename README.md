@@ -30,6 +30,10 @@ The server-side `/api/uk-dmd` route searches actual medicinal products (AMPs) th
 
 Results include the dm+d APID and product name. They establish that an actual product record was returned by the dm+d data source, not that the product currently has MHRA authorisation. Verify regulatory status using the official [MHRA products database](https://products.mhra.gov.uk/). The dmdapi free tier advertises 100 lookups per day; check the provider's current documentation and terms for limits before production use.
 
+## Search aliases
+
+Ingredient query expansion is deliberately limited to exact, reviewed aliases from the same terminology concept. The initial pair is acetaminophen/paracetamol, verified in NLM RxNorm as RXCUI 161. Alias variants are used only for source fields that search active ingredients (FDA, Health Canada, and Hong Kong); they are not sent as brand-name, UK AMP product-name, EMA PMS product-name, or EMA ePI title queries. Results preserve the alias, original query, RxNorm source, and concept ID. Brand-to-ingredient inference, salt/formulation substitution, and therapeutic-equivalence claims are not part of this alias set.
+
 - [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
