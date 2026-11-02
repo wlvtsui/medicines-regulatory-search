@@ -1,0 +1,89 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Install RxNorm refresh parser tools",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"install",
+				"--save-dev",
+				"cheerio",
+				"fflate"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Generate RxNorm alias snapshot",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"scripts/update-rxnorm-aliases.mjs"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Retry RxNorm alias snapshot",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"scripts/update-rxnorm-aliases.mjs"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Regenerate from current RxNorm release",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"scripts/update-rxnorm-aliases.mjs"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Inspect RxNorm release response",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"scripts/update-rxnorm-aliases.mjs"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Probe RxNorm archive URLs",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"scripts/check-rxnorm-download.mjs"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Inspect RxNorm current archive",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"scripts/check-rxnorm-download.mjs"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Stream RxNorm current download",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"scripts/check-rxnorm-download.mjs"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Generate current RxNorm alias index",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"scripts/update-rxnorm-aliases.mjs"
+			],
+			"isBackground": false
+		}
+	]
+}

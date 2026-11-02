@@ -32,7 +32,9 @@ Results include the dm+d APID and product name. They establish that an actual pr
 
 ## Search aliases
 
-Ingredient query expansion is deliberately limited to exact, reviewed aliases from the same terminology concept. The initial pair is acetaminophen/paracetamol, verified in NLM RxNorm as RXCUI 161. Alias variants are used only for source fields that search active ingredients (FDA, Health Canada, and Hong Kong); they are not sent as brand-name, UK AMP product-name, EMA PMS product-name, or EMA ePI title queries. Results preserve the alias, original query, RxNorm source, and concept ID. Brand-to-ingredient inference, salt/formulation substitution, and therapeutic-equivalence claims are not part of this alias set.
+Ingredient query expansion uses exact English terms grouped under the same RxNorm ingredient concept in the generated `data/rxnorm-ingredient-aliases.json` file. Source and RXCUI are retained for result provenance. Variants are sent only to active-ingredient fields in FDA, Health Canada, and Hong Kong; they are not sent to brand-name, UK AMP product-name, EMA PMS product-name, or EMA ePI title queries.
+
+Refresh the local index with `npm run aliases:rxnorm:update`. The script downloads NLM's no-license Current Prescribable Content archive, gets the release date from its embedded README, checks that the archive is not older than the RxNav version endpoint, then atomically writes the JSON index. It keeps only English ingredient concepts (`IN`/`PIN`) with multiple in-scope terms from the RxNorm and FDA SPL vocabularies. Review the generated concept count and sample groups before committing a refreshed index. This index expands exact ingredient synonyms only; it does not infer brand-to-ingredient relationships, salt/formulation substitutions, or therapeutic equivalence.
 
 - [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.

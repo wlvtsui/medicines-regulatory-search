@@ -1,3 +1,5 @@
+import rxNormAliasIndex from "@/data/rxnorm-ingredient-aliases.json";
+
 export type MedicineMatchReason =
   | "brand-name"
   | "ingredient"
@@ -17,14 +19,20 @@ export type MedicineQueryVariant = {
   alias?: MedicineAliasProvenance;
 };
 
-const INGREDIENT_ALIAS_GROUPS = [
-  {
-    conceptId: "RXCUI:161",
-    names: ["acetaminophen", "paracetamol"],
-    source: "NLM RxNorm",
-    sourceUrl: "https://www.nlm.nih.gov/research/umls/rxnorm/overview.html",
-  },
-] as const;
+type RxNormAliasGroup = {
+  conceptId: string;
+  preferredTerm: string;
+  terms: string[];
+};
+
+type RxNormAliasIndex = {
+  source: string;
+  sourceUrl: string;
+  releaseDate: string;
+  groups: RxNormAliasGroup[];
+};
+
+const aliasIndex = rxNormAliasIndex as RxNormAliasIndex;
 
 export function normalizeMedicineQuery(value: string): string {
   return value
@@ -48,13 +56,13 @@ export function getMedicineQueryVariants(query: string): MedicineQueryVariant[] 
 
   const variants: MedicineQueryVariant[] = [{ term }];
 
-  for (const group of INGREDIENT_ALIAS_GROUPS) {
-    const names = group.names.map(normalizeMedicineText);
+  for (const group of aliasIndex.groups) {
+    const names = group.terms.map(normalizeMedicineText);
     if (!names.includes(normalizedTerm)) {
       continue;
     }
 
-    for (const alias of group.names) {
+    for (const alias of group.terms) {
       const normalizedAlias = normalizeMedicineText(alias);
       if (normalizedAlias === normalizedTerm) {
         continue;
@@ -65,9 +73,9 @@ export function getMedicineQueryVariants(query: string): MedicineQueryVariant[] 
         alias: {
           matchedTerm: alias,
           aliasOf: term,
-          source: group.source,
+          source: `${aliasIndex.source} ${aliasIndex.releaseDate}`,
           conceptId: group.conceptId,
-          sourceUrl: group.sourceUrl,
+          sourceUrl: aliasIndex.sourceUrl,
         },
       });
     }
