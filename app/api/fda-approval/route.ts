@@ -101,7 +101,7 @@ export async function GET(request: Request) {
 
     query = term;
     searchMode = "medicine name";
-    const queryVariants = getMedicineQueryVariants(term);
+    const queryVariants = await getMedicineQueryVariants(term);
 
     search = [
       `products.brand_name:"${searchTerm}"`,
@@ -139,7 +139,7 @@ export async function GET(request: Request) {
 
     const data = await response.json();
     const queryVariants = searchMode === "medicine name"
-      ? getMedicineQueryVariants(query)
+      ? await getMedicineQueryVariants(query)
       : [];
 
     const results = (

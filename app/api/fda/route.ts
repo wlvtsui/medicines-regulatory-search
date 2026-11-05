@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const queryVariants = getMedicineQueryVariants(term);
+  const queryVariants = await getMedicineQueryVariants(term);
   const search = [
     ...queryVariants.map(
       (variant) => `openfda.generic_name:"${variant.term}"`

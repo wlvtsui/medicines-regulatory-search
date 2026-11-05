@@ -6,8 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "aliases:rxnorm:update": "node scripts/update-rxnorm-aliases.mjs"
+    "lint": "eslint"
   },
   "dependencies": {
     "fast-xml-parser": "^5.11.2",

@@ -32,9 +32,9 @@ Results include the dm+d APID and product name. They establish that an actual pr
 
 ## Search aliases
 
-Ingredient query expansion uses exact English terms grouped under the same RxNorm ingredient concept in the generated `data/rxnorm-ingredient-aliases.json` file. Source and RXCUI are retained for result provenance. Variants are sent only to active-ingredient fields in FDA, Health Canada, and Hong Kong; they are not sent to brand-name, UK AMP product-name, EMA PMS product-name, or EMA ePI title queries.
+Ingredient query expansion calls the official [NLM RxNav REST API](https://rxnav.nlm.nih.gov/REST) (`/approximateTerm`) at search time. It returns fuzzy-matched terms and their RXCUI, which are sent as additional OR terms to active-ingredient fields in FDA, Health Canada, and Hong Kong; they are not sent to brand-name, UK AMP product-name, EMA PMS product-name, or EMA ePI title queries. Source, RXCUI, and the matched term are retained for result provenance.
 
-Refresh the local index with `npm run aliases:rxnorm:update`. The script downloads NLM's no-license Current Prescribable Content archive, gets the release date from its embedded README, checks that the archive is not older than the RxNav version endpoint, then atomically writes the JSON index. It keeps only English ingredient concepts (`IN`/`PIN`) with multiple in-scope terms from the RxNorm and FDA SPL vocabularies. Review the generated concept count and sample groups before committing a refreshed index. This index expands exact ingredient synonyms only; it does not infer brand-to-ingredient relationships, salt/formulation substitutions, or therapeutic equivalence.
+Unlike the previous static index, this is always current and tolerant of typos, but it requires network access at search time and matches term-to-RXCUI rather than grouping synonyms under a single ingredient concept. It does not infer brand-to-ingredient relationships, salt/formulation substitutions, or therapeutic equivalence.
 
 - [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.

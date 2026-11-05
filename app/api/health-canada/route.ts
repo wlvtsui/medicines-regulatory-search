@@ -128,7 +128,7 @@ export async function GET(request: Request) {
   }
 
   const searchTerm = normalizeMedicineQuery(term);
-  const queryVariants = getMedicineQueryVariants(term);
+  const queryVariants = await getMedicineQueryVariants(term);
   const settledSearches = await Promise.allSettled([
     fetchDpdRecords<DpdProduct>("drugproduct/", { brandname: searchTerm }),
     ...queryVariants.map((variant) =>

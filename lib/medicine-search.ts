@@ -1,4 +1,7 @@
-import rxNormAliasIndex from "@/data/rxnorm-ingredient-aliases.json";
+const RXNAV_BASE = "https://rxnav.nlm.nih.gov/REST";
+const RXNAV_DOC_URL = "https://rxnav.nlm.nih.gov/REST";
+const MAX_VARIANTS = 10;
+const RXNAV_TIMEOUT_MS = 15000;
 
 export type MedicineMatchReason =
   | "brand-name"
@@ -19,21 +22,6 @@ export type MedicineQueryVariant = {
   alias?: MedicineAliasProvenance;
 };
 
-type RxNormAliasGroup = {
-  conceptId: string;
-  preferredTerm: string;
-  terms: string[];
-};
-
-type RxNormAliasIndex = {
-  source: string;
-  sourceUrl: string;
-  releaseDate: string;
-  groups: RxNormAliasGroup[];
-};
-
-const aliasIndex = rxNormAliasIndex as RxNormAliasIndex;
-
 export function normalizeMedicineQuery(value: string): string {
   return value
     .normalize("NFKC")
@@ -47,7 +35,9 @@ export function normalizeMedicineText(value: string): string {
   return normalizeMedicineQuery(value).toLocaleLowerCase("en");
 }
 
-export function getMedicineQueryVariants(query: string): MedicineQueryVariant[] {
+export async function getMedicineQueryVariants(
+  query: string
+): Promise<MedicineQueryVariant[]> {
   const term = normalizeMedicineQuery(query);
   const normalizedTerm = normalizeMedicineText(term);
   if (!normalizedTerm) {
@@ -56,32 +46,73 @@ export function getMedicineQueryVariants(query: string): MedicineQueryVariant[] 
 
   const variants: MedicineQueryVariant[] = [{ term }];
 
-  for (const group of aliasIndex.groups) {
-    const names = group.terms.map(normalizeMedicineText);
-    if (!names.includes(normalizedTerm)) {
-      continue;
-    }
+  try {
+    const candidates = await fetchRxNavApproximateTerm(term);
+    const seen = new Set([normalizedTerm]);
 
-    for (const alias of group.terms) {
-      const normalizedAlias = normalizeMedicineText(alias);
-      if (normalizedAlias === normalizedTerm) {
+    for (const candidate of candidates) {
+      if (variants.length >= MAX_VARIANTS) {
+        break;
+      }
+
+      const name = candidate.name?.trim();
+      if (!name) {
         continue;
       }
 
+      const normalizedName = normalizeMedicineText(name);
+      if (!normalizedName || seen.has(normalizedName)) {
+        continue;
+      }
+      seen.add(normalizedName);
+
       variants.push({
-        term: alias,
+        term: name,
         alias: {
-          matchedTerm: alias,
+          matchedTerm: name,
           aliasOf: term,
-          source: `${aliasIndex.source} ${aliasIndex.releaseDate}`,
-          conceptId: group.conceptId,
-          sourceUrl: aliasIndex.sourceUrl,
+          source: `NLM RxNav${candidate.source ? ` (${candidate.source})` : ""}`,
+          conceptId: candidate.rxcui ? `RXCUI:${candidate.rxcui}` : "",
+          sourceUrl: RXNAV_DOC_URL,
         },
       });
     }
+  } catch {
+    // RxNav unavailable — fall back to the raw query term only.
   }
 
   return variants;
+}
+
+type RxNavCandidate = {
+  rxcui?: string;
+  rxaui?: string;
+  score?: string;
+  rank?: string;
+  name?: string;
+  source?: string;
+};
+
+async function fetchRxNavApproximateTerm(
+  term: string
+): Promise<RxNavCandidate[]> {
+  const url = new URL(`${RXNAV_BASE}/approximateTerm.json`);
+  url.searchParams.set("term", term);
+  url.searchParams.set("maxEntries", String(MAX_VARIANTS));
+
+  const response = await fetch(url.toString(), {
+    cache: "no-store",
+    signal: AbortSignal.timeout(RXNAV_TIMEOUT_MS),
+  });
+
+  if (!response.ok) {
+    throw new Error(`RxNav approximateTerm returned HTTP ${response.status}`);
+  }
+
+  const json = await response.json();
+  const candidates = json?.approximateGroup?.candidate ?? [];
+
+  return Array.isArray(candidates) ? candidates : [];
 }
 
 export function matchesMedicineQuery(value: string, query: string): boolean {

@@ -91,7 +91,7 @@ export async function GET(request: Request) {
     }
 
     const lastUpdated = asText(feedRoot.lastUpdate) || "Not provided";
-    const queryVariants = getMedicineQueryVariants(term);
+    const queryVariants = await getMedicineQueryVariants(term);
     const allProducts = asArray(feedRoot.drug)
       .map(asRecord)
       .filter((product): product is XmlRecord => Boolean(product));
